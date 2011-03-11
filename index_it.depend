@@ -1,0 +1,18 @@
+# depslib dependency file v1.0
+1299803892 source:e:\c_plus_plus_workspace\index_it\parser.cpp
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<locale>
+
+1299810395 source:e:\c_plus_plus_workspace\index_it\main.cpp
+	<cstdio>
+	<cstdlib>
+	<cstring>
+	<iostream>
+	<fstream>
+	<sstream>
+	"parser.h"
+
+1299460131 e:\c_plus_plus_workspace\index_it\parser.h
+
