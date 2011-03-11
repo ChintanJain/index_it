@@ -1,6 +1,6 @@
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <locale>
 
 
@@ -36,7 +36,7 @@ char* parser_init(char* doc)
 	if (atoi(p) != 200)
 		return NULL;
 
-	p = strstr(p,  "\r\n\r\n");
+   // p = strstr(p, " ");
 	if (p == NULL)
 		return NULL;
 
