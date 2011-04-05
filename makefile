@@ -1,10 +1,12 @@
 CC= gcc
 CXX= g++
-CFLAGS =
+CFLAGS=
 SRCS= main.cpp parser.cpp
 OBJS= main.o parser.o
 HDRS= parser.h
 BINS= index_it
+
+all: $(BINS) run done
 
 $(BINS): $(OBJS) $(HDRS)
 	$(CXX) -o $@ $(CFLAGS) $(OBJS) -lz
@@ -12,7 +14,7 @@ $(BINS): $(OBJS) $(HDRS)
 $(OBJS): $(SRCS) $(HDRS)
 	$(CXX) -c $(CFLAGS) $(SRCS)
 
-.PHONY: clean clean_all run
+.PHONY: clean clean_all run done
 
 clean:
 	rm *.o index_it
@@ -22,3 +24,6 @@ clean_all:
 
 run:
 	./index_it
+
+done:
+	echo "Done running"

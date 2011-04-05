@@ -126,9 +126,9 @@ void parse_data()
         int data_file_length = 0;
         
         // skip blacklisted files
-        // nz2: 41
+        // nz2: 48
         // nz10: 211, 241, 331
-        if( i == 41 ) continue;
+        if( i == 48 ) continue;
 
         data_file_name << dest_prefix << i << "_data";
         index_file_name << dest_prefix << i << "_index";
