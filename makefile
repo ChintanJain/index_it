@@ -6,7 +6,7 @@ OBJS= main.o parser.o
 HDRS= parser.h
 BINS= index_it
 
-all: $(BINS) run done
+all: $(BINS)
 
 $(BINS): $(OBJS) $(HDRS)
 	$(CXX) -o $@ $(CFLAGS) $(OBJS) -lz
@@ -17,10 +17,10 @@ $(OBJS): $(SRCS) $(HDRS)
 .PHONY: clean clean_all run done
 
 clean:
-	rm *.o index_it
+	rm *.o $(BINS)
 
 clean_all:
-	rm *.o index_it structures/u* structures/l* structures/i* postings/s* data/*_data data/*_index
+	rm *.o $(BINS) structures/u* structures/l* structures/i* postings/s* data/*_data data/*_index
 
 run:
 	./index_it

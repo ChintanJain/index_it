@@ -209,7 +209,7 @@ void sort_postings()
 
 void process_postings()
 {
-    int doc_id = 0, frequency = 0;
+    int doc_id = 0;
     ifstream sorted_postings;
     ofstream lexicon;
     string posting, word, context;
