@@ -1,7 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <sstream>
 #include <locale>
+#include <iostream>
+using namespace std;
 
 
 #define PTAG_B	1
@@ -26,7 +29,7 @@ char* parser_init(char* doc)
 {
 	char *p;
 
-	if (strnicmp(doc, "HTTP/", 5))
+	if (strncasecmp(doc, "HTTP/", 5))
 		return NULL;
 
 	for (p = doc; (*p != ' ')&&(*p); p++);
@@ -36,7 +39,7 @@ char* parser_init(char* doc)
 	if (atoi(p) != 200)
 		return NULL;
 
-   // p = strstr(p, " ");
+	p = strstr(p, "\r\n\r\n");
 	if (p == NULL)
 		return NULL;
 
@@ -94,7 +97,7 @@ int tag_parser(char* tag, int len, char* back_tag)
 		i++;
 		if (!isascii(tag[i+4]))
 			return 0;
-		if ((0==strnicmp(tag+i, "itle", 4)) && (isspace(tag[i+4])))
+		if ((0==strncasecmp(tag+i, "itle", 4)) && (isspace(tag[i+4])))
 			return PTAG_TITLE;
 		return 0;
 
@@ -103,9 +106,9 @@ int tag_parser(char* tag, int len, char* back_tag)
 		i++;
 		if (!isascii(tag[i+5]))
 			return 0;
-		if ((0==strnicmp(tag+i, "trong", 5)) && (isspace(tag[i+5])))
+		if ((0==strncasecmp(tag+i, "trong", 5)) && (isspace(tag[i+5])))
 			return PTAG_B;
-		if ((0==strnicmp(tag+i, "cript", 5)) && (isspace(tag[i+5])))
+		if ((0==strncasecmp(tag+i, "cript", 5)) && (isspace(tag[i+5])))
 			return PTAG_SCRIPT;
 		return 0;
 
@@ -120,12 +123,16 @@ int tag_parser(char* tag, int len, char* back_tag)
 #define xlbit_unset(__b1, __b2)	((__b1) &= ~(__b2))
 #define xlbit_check(__b1, __b2) ((__b1)&(__b2))
 
-int parser(char* url, char* doc, char* buf, int blen, int maxlen)
+int parser(char* url, char* doc, char* buf, int blen, int maxlen, int doc_id)
 {
 	char *p, *purl, *word, *ptag, *pbuf;
 	char ch, back_tag, intag, inscript;
 	unsigned tag_flag;
-	int ret;
+	int ret, doc_id_length = 0;
+	stringstream doc_id_stream;
+    doc_id_stream << doc_id;
+
+    doc_id_length = doc_id_stream.str().length();
 
 	p = parser_init(doc);
 	if (p == NULL)
@@ -151,12 +158,14 @@ int parser(char* url, char* doc, char* buf, int blen, int maxlen)
 		}
 
 		ch = *purl;
-		*purl = '\0';
+        *purl = '\0';
+
 
 		if (pbuf-buf+purl-word+3 > blen-1)
 			return -1;
-		sprintf(pbuf, "%s U\n", word);
-		pbuf += (purl-word)+3;
+
+		sprintf(pbuf, "%s U %i\n", word, doc_id);
+		pbuf += (purl-word)+4+doc_id_length;
 
 		*purl = ch;
 	}
@@ -209,11 +218,11 @@ int parser(char* url, char* doc, char* buf, int blen, int maxlen)
 
 				case PTAG_H:
 
-				if (back_tag == 0)
-					xlbit_set(tag_flag, _H_TAG);
-				else
-					xlbit_unset(tag_flag, _H_TAG);
-				break;
+                    if (back_tag == 0)
+                        xlbit_set(tag_flag, _H_TAG);
+                    else
+                        xlbit_unset(tag_flag, _H_TAG);
+                    break;
 
 				case PTAG_TITLE:
 
@@ -303,11 +312,22 @@ int parser(char* url, char* doc, char* buf, int blen, int maxlen)
 
 		if (pbuf-buf+1> blen-1)
 			return -1;
+
+
+		*pbuf = ' ';
+		pbuf++;
+
+		for ( int i = 0; i < doc_id_length; i++ ) {
+		    *pbuf = doc_id_stream.str().c_str()[i];
+		    pbuf++;
+		}
+
 		*pbuf = '\n';
 		pbuf++;
 		*p = ch;
 	}
 
 	*pbuf = '\0';
+
 	return pbuf-buf;
 }

@@ -4,83 +4,281 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <map>
+#include <zlib.h>
 #include "parser.h"
+#define CHUNK 10240
 using namespace std;
 
-void page_info( string );
+struct page_stats {
+    string url;
+    int length;
+};
+
+struct node {
+    int doc_id;
+    int frequency;
+    node *next;
+};
+
+map<string, node*> words_dictionary;
+map<string, node*>::iterator it;
+
+void decompress_all_files();
+void decompress_file(char*, char*);
+void parse_data();
+page_stats page_info(ifstream &);
+void set_file_length(ifstream &, int &);
+void sort_postings();
+void process_postings();
+void create_lexicon_and_inverted_index();
+void add_to_lexicon(string);
+void add_to_inverted_index(string);
 
 int main()
 {
-    char *document_block, *buffer, url[] = "www2.oc.edu/contact_pres.html";
-    int size_document, postings;
+    // COMPONENT 1
+    decompress_all_files();
 
-    //int index_file_number = 0 ;
-    string index_file_name = "down1_1800_index" ;
+    // COMPONENT 2
+    parse_data();
 
-    ifstream myfile;
-    ofstream sent_file;
+    // COMPONENT 3
+    sort_postings();
 
-    myfile.open("tmp/down1_1800_min");
+    // COMPONENT 4
+    process_postings();
 
-    myfile.seekg(0, ios::end);
-    size_document = myfile.tellg();
-    myfile.seekg(0, ios::beg);
-
-    cout << "Size of document" << size_document;
-
-    document_block = new char[size_document];
-
-    myfile.read(document_block, size_document);
-    myfile.close();
-
-    // Reads page information from the index file
-    page_info(index_file_name);
-
-    buffer = new char[2*size_document+1];
-
-    // Parsing page
-    postings = parser(url, document_block, buffer, 2*size_document+1, 1000000);
-
-    //print postings in a temporary file
-    ofstream temp_file;
-    temp_file.open("tmp/temp.txt");
-    temp_file << buffer;
-    temp_file.close();
-
-    cout <<"size_of_postings" <<  postings;
-
-    //release memory
-    delete[] document_block;
-    delete[] buffer;
+    // COMPONENT 5
+    create_lexicon_and_inverted_index();
 
     return 0;
 }
 
-//void page_info( char* page_buffer, string index_number)
-void page_info( string index_number){
-    int length = 0, port_no = 0;
-    string ip_address, netloc, comment, path_name, path = "tmp/", index_path = "_index", full_path;
+void decompress_all_files()
+{
+    int num_files = 414;
+    string source_prefix = "tmp/nz10_merged/", dest_prefix = "data/";
 
-   // Send index number of each index file
-   /* std::string index_to_string;
-    std::stringstream out_stream;
-    out_stream << index_number;
-    index_to_string = out_stream.str();
-    string full_path = path + index_to_string + index_path; */
+    for ( int i = 0; i < num_files; i++ ) {
+        cout << "Datafile: " << i << endl;
+        stringstream data_file_name;
+        stringstream index_file_name;
 
-    full_path = path + index_number;
+        data_file_name << i << "_data";
+        index_file_name << i << "_index";
 
-    //Open Index file in read mode
-    ifstream index_file;
-    index_file.open(full_path.c_str());
-    if (index_file.is_open()){
+        string in_data_filename = source_prefix + data_file_name.str();
+        string in_index_filename = source_prefix + index_file_name.str();
+        string out_data_filename = dest_prefix + data_file_name.str();
+        string out_index_filename = dest_prefix + index_file_name.str();
 
-       // Read components of first line from a file.
-       index_file >> netloc >> ip_address >> port_no >> path_name >> comment >> length;
-       cout << "\n Netloc "<< netloc <<" \n Ip address "<< ip_address <<"\n port no. "<< port_no <<"\n path name "<< path_name <<"\n Comment "<< comment <<"\n Length "<< length;
+        decompress_file( ( char* )in_data_filename.c_str(), ( char* )out_data_filename.c_str() );
+        decompress_file( ( char* )in_index_filename.c_str(), ( char* )out_index_filename.c_str() );
     }
-    else{
-        cout << "Can not be opened!\n"<< index_file;
-        exit(1);
+}
+
+void decompress_file(char* source, char* dest)
+{
+    char* buffer = NULL;
+    gzFile infile;
+    int num_read = 0;
+    ofstream out;
+
+    infile = gzopen( source, "r" );
+    out.open( dest );
+
+    buffer = ( char* )malloc( CHUNK );
+
+    while ( !gzeof( infile ) ) {
+        num_read += gzread( infile, buffer+num_read, CHUNK );
+
+		if ( num_read > 0 ) {
+			buffer = ( char * )realloc( buffer, num_read + CHUNK );
+        }
     }
+
+    buffer[num_read] = '\0';
+
+    out << buffer;
+
+    free( buffer );
+
+    out.close();
+    gzclose( infile );
+}
+
+void parse_data()
+{
+    int num_files = 414, doc_id = 0;
+    string dest_prefix = "data/";
+    ofstream postings_file, url_table;
+    
+    postings_file.open( "postings/full_postings", ios::app );
+    url_table.open( "structures/url_table", ios::app );
+
+    for ( int i = 0; i < num_files; i++ ) {
+        ifstream index_file, data_file;
+        stringstream data_file_name;
+        stringstream index_file_name;
+        stringstream postings_file_name;
+        char* data_buffer;
+        int data_file_length = 0;
+        
+        // skip blacklisted files
+        if( i == 211 || i == 241 ) continue;
+
+        data_file_name << dest_prefix << i << "_data";
+        index_file_name << dest_prefix << i << "_index";
+
+        index_file.open( index_file_name.str().c_str() );
+        data_file.open( data_file_name.str().c_str() );
+
+        // read data_file_length bytes from data_file into memory
+        set_file_length( data_file, data_file_length );
+        data_buffer = ( char* )malloc( data_file_length );
+        data_file.read( data_buffer, data_file_length );
+        data_buffer[data_file_length - 1] = '\0';
+
+        while ( !index_file.eof() ) {
+            char* posting_buffer, * page_buffer;
+            page_stats page;
+
+            page = page_info( index_file );
+
+            if ( page.length > 0 ) {
+                posting_buffer = ( char* )malloc( data_file_length );
+                page_buffer = ( char* )malloc( page.length );
+                
+                strncpy( page_buffer, data_buffer, page.length );
+
+                cout << "[" << i << "](" << doc_id << ") " << page.length << ": " << page.url << endl;
+                page_buffer[page.length - 1] = '\0';
+
+                parser( ( char* )page.url.c_str(), page_buffer, posting_buffer, page.length, page.length, doc_id );
+                posting_buffer[page.length - 1] = '\0';
+
+                postings_file << posting_buffer;
+                url_table << doc_id << " " << page.length << " " << page.url << endl;
+
+                free( posting_buffer );
+                free( page_buffer );
+            }
+
+            doc_id++;
+        }
+
+        free( data_buffer );
+        index_file.close();
+    }
+    
+    postings_file.close();
+    url_table.close();
+}
+
+page_stats page_info(ifstream &index_file)
+{
+    string line, url, field1, field2, length, ip, port, status;
+    page_stats page;
+
+    getline( index_file, line );
+    stringstream parseable_line( line );
+
+    while ( parseable_line >> url >> field1 >> field2 >> length >> ip >> port >> status );
+
+    page.url = url;
+    page.length = atoi( length.c_str() );
+
+    return page;
+}
+
+void set_file_length(ifstream &infile, int &file_size)
+{
+    infile.seekg (0, ios::end);
+    file_size = infile.tellg();
+    infile.seekg (0, ios::beg);
+}
+
+void sort_postings()
+{
+    system( "sort postings/full_postings > postings/sorted_postings" );
+    remove( "postings/full_postings" );
+}
+
+void process_postings()
+{
+    int doc_id = 0, frequency = 0;
+    ifstream sorted_postings;
+    ofstream lexicon;
+    string posting, word, context;
+
+    sorted_postings.open( "postings/sorted_postings" );
+
+    while( !sorted_postings.eof() ) {
+        getline( sorted_postings, posting );
+        stringstream parseable_posting( posting );
+
+        parseable_posting >> word >> context >> doc_id;
+
+        // for repeating word => check dictionary to get head_ptr address
+        if( words_dictionary.count( word ) ) {
+            node* new_node = NULL;
+            node* head = words_dictionary[word];
+
+            while( head->next )
+                head = head->next;
+
+            if( head->doc_id < doc_id ) {
+                new_node = new node;
+                new_node->doc_id = doc_id;
+                new_node->frequency = 1;
+                new_node->next = NULL;
+                head->next = new_node;
+            }
+            else {
+                head->frequency++;
+                continue;
+            }
+        }
+        // for new word => create head_ptr and store address in dictionary
+        else {
+            node* head = NULL;
+
+            head = new node;
+            head->doc_id = doc_id;
+            head->frequency = 1;
+            head->next = NULL;
+
+            words_dictionary[word] = head;
+        }
+    }
+
+    sorted_postings.close();
+}
+
+void create_lexicon_and_inverted_index()
+{
+    ofstream lexicon;
+    fstream inverted_index;
+
+    lexicon.open( "structures/lexicon" );
+    inverted_index.open( "structures/inverted_index", fstream::out );
+
+    for ( it = words_dictionary.begin(); it != words_dictionary.end(); it++ ) {
+        node* head_pointer = words_dictionary[( *it ).first];
+
+        lexicon << ( *it ).first << " " << inverted_index.tellg() << endl;
+
+        inverted_index << head_pointer->doc_id << " " << head_pointer->frequency << " ";
+
+        while( head_pointer->next ) {
+            head_pointer = head_pointer->next;
+            inverted_index << head_pointer->doc_id << " " << head_pointer->frequency << " ";
+        }
+
+        inverted_index << endl;
+    }
+
+    lexicon.close();
+    inverted_index.close();
 }

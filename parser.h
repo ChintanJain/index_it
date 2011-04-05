@@ -19,6 +19,6 @@ arguments:
 	4) length of buffer
 
 ***************************************************************/
-int parser(char*, char*, char*, int, int);
+int parser(char*, char*, char*, int, int, int);
 
 #endif
