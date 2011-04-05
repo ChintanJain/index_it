@@ -57,8 +57,8 @@ int main()
 
 void decompress_all_files()
 {
-    int num_files = 414;
-    string source_prefix = "tmp/nz10_merged/", dest_prefix = "data/";
+    int num_files = 83;
+    string source_prefix = "tmp/nz2_merged/", dest_prefix = "data/";
 
     for ( int i = 0; i < num_files; i++ ) {
         cout << "Datafile: " << i << endl;
@@ -110,7 +110,7 @@ void decompress_file(char* source, char* dest)
 
 void parse_data()
 {
-    int num_files = 414, doc_id = 0;
+    int num_files = 83, doc_id = 0;
     string dest_prefix = "data/";
     ofstream postings_file, url_table;
     
@@ -126,7 +126,9 @@ void parse_data()
         int data_file_length = 0;
         
         // skip blacklisted files
-        if( i == 211 || i == 241 ) continue;
+        // nz2: 41
+        // nz10: 211, 241, 331
+        if( i == 41 ) continue;
 
         data_file_name << dest_prefix << i << "_data";
         index_file_name << dest_prefix << i << "_index";
